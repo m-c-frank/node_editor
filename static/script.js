@@ -1,13 +1,30 @@
 document.addEventListener("DOMContentLoaded", async () => {
     const response = await fetch('/nodes/random');
     const node = await response.json();
+    console.log(node);
+    const similarRequest = {
+        node_id: node.id,
+    };
+    console.log(similarRequest);
+    // get similar by posting the node to /nodes/similar
+    const similarNodes = await fetch('/nodes/similar', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(similarRequest),
+    });
+    const similarNodesJson = await similarNodes.json();
+    console.log(similarNodesJson);
     const nodeDiv = displayNode(node);
+    document.getElementById('nodeContainer').appendChild(nodeDiv);
     setupFormSubmission();
 });
 
 
 function displayNode(node) {
-    const div = document.getElementById('nodeViewer');
+    const div = document.createElement('div');
+    div.classList.add('nodeViewer');
 
     const id = document.createElement('textarea');
     const name = document.createElement('textarea');

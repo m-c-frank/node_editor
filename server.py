@@ -1,4 +1,5 @@
 import fastapi
+import numpy as np
 import random
 import requests
 from fastapi.staticfiles import StaticFiles
@@ -14,12 +15,18 @@ app = fastapi.FastAPI()
 session_graph = nx.Graph()
 
 NODES_URL = "http://localhost:5020/nodes"
+EMBEDDINGS_URL = "http://localhost:5020/embeddings"
 HOST = "localhost"
 PORT = 5030
 PATH_SESSION_GRAPHS = "/home/mcfrank/brain/data/node_editor_subgraphs"
 
 session_timestamp = str(int(time.time()*1000))
 SESSION_GRAPH_FILE = f"session_graph_{session_timestamp}.json"
+
+
+class Embedding(BaseModel):
+    node_id: str
+    embedding: List[float]
 
 
 class Link(BaseModel):
@@ -41,11 +48,44 @@ def get_nodes():
     temp_nodes = []
     request = requests.get(NODES_URL)
     if request.status_code == 200:
-        temp_nodes = request.json()
+        temp_nodes_json = request.json()
+        temp_node_dicts = [dict(node) for node in temp_nodes_json]
+        for temp_node_dict in temp_node_dicts:
+            temp_node = Node(
+                id=temp_node_dict["id"],
+                name=temp_node_dict["name"],
+                timestamp=temp_node_dict["timestamp"],
+                origin=temp_node_dict["origin"],
+                text=temp_node_dict["text"]
+            )
+            temp_nodes.append(temp_node)
+
     return temp_nodes
 
 
+def get_embeddings():
+    # embeddings are a list at localhost:5020/embeddings
+    temp_embeddings = []
+    request = requests.get(EMBEDDINGS_URL)
+
+    if request.status_code == 200:
+        temp_embeddings_json = request.json()
+        temp_embedding_dicts = [dict(embedding)
+                                for embedding in temp_embeddings_json]
+        for temp_embedding_dict in temp_embedding_dicts:
+            temp_embedding = Embedding(
+                node_id=temp_embedding_dict["node_id"],
+                embedding=temp_embedding_dict["embedding"]
+            )
+            temp_embeddings.append(temp_embedding)
+
+    return temp_embeddings
+
+
 nodes = get_nodes()
+embeddings = get_embeddings()
+print(len(nodes))
+print(len(embeddings))
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -57,7 +97,54 @@ def read_root():
 
 @app.get("/nodes/random")
 def get_random() -> Node:
-    return random.choice(nodes)
+    r_node = random.choice(nodes)
+    return r_node
+
+
+class SimilarNodesRequest(BaseModel):
+    node_id: str
+
+
+def get_node_embedding(node_id: str):
+    for embedding in embeddings:
+        if embedding.node_id == node_id:
+            return embedding.embedding
+
+
+@app.post("/nodes/similar")
+def get_similar(similar_nodes_request: SimilarNodesRequest) -> List[Node]:
+    base_node_id = similar_nodes_request.node_id
+
+    node_embedding = get_node_embedding(base_node_id)
+
+    node_id_similarity_map = {}
+    for embedding_obj in embeddings:
+        if embedding_obj.node_id == base_node_id:
+            continue
+        temp_id = embedding_obj.node_id
+        embedding_vector = embedding_obj.embedding
+        temp_embedding = np.array(embedding_vector)
+        similarity = np.dot(temp_embedding, node_embedding) / \
+            (np.linalg.norm(node_embedding) * np.linalg.norm(temp_embedding))
+        node_id_similarity_map[temp_id] = similarity
+
+    # Sort by similarity score and select top N
+    zipped_map = list(node_id_similarity_map.items())
+    zipped_map.sort(key=lambda x: x[1], reverse=True)
+    top_similar_nodes = zipped_map[:8]
+
+    print(top_similar_nodes)
+
+    samples = random.sample(top_similar_nodes, 2)
+
+    sampled_nodes = []
+    for sample in samples:
+        id = sample[0]
+        for node in nodes:
+            if node.id == id:
+                sampled_nodes.append(node)
+
+    return sampled_nodes
 
 
 class NodeInsertRequest(BaseModel):
