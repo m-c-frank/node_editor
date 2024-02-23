@@ -18,7 +18,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     console.log(similarNodesJson);
     const nodeDiv = displayNode(node);
     document.getElementById('nodeContainer').appendChild(nodeDiv);
-    setupFormSubmission();
+    const similar1div = displayNode(similarNodesJson[0]);
+    document.getElementById('similarContainer1').appendChild(similar1div);
+    const similar2div = displayNode(similarNodesJson[1]);
+    document.getElementById('similarContainer2').appendChild(similar2div);
 });
 
 
@@ -81,19 +84,27 @@ function displayNode(node) {
     div.appendChild(text_span);
     div.appendChild(text);
 
+    // add a button to submit the new node
+    setupNodeSubmission(div);
+
     return div
 }
 
 
-function setupFormSubmission() {
-    document.getElementById('submitNode').onclick = async () => {
+function setupNodeSubmission(nodeViewerDiv) {
+    const submitButton = document.createElement('button');
+    submitButton.id = 'submitNode';
+    submitButton.textContent = 'Submit';
+    nodeViewerDiv.appendChild(submitButton);
+    submitButton.onclick = async () => {
         const new_id = generateUUID();
-        const new_name = document.getElementById('nodeName').value;
-        const new_timestamp = document.getElementById('nodeTimestamp').value;
-        const new_origin = document.getElementById('nodeOrigin').value;
-        const new_text = document.getElementById('nodeText').value;
+        const new_name = nodeViewerDiv.querySelector('#nodeName').value;
+        console.log(new_name);
+        const new_timestamp = nodeViewerDiv.querySelector('#nodeTimestamp').value;
+        const new_origin = nodeViewerDiv.querySelector('#nodeOrigin').value;
+        const new_text = nodeViewerDiv.querySelector("#nodeText").value;
 
-        const original_id = document.getElementById('nodeID').value;
+        const original_id = nodeViewerDiv.querySelector('#nodeID').value;
 
         const new_node = {
             id: new_id,
