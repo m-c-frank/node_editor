@@ -16,6 +16,7 @@ session_graph = nx.Graph()
 
 NODES_URL = "http://localhost:5020/nodes"
 EMBEDDINGS_URL = "http://localhost:5020/embeddings"
+EMBED_URL = "http://localhost:5020/embed/text"
 HOST = "localhost"
 PORT = 5030
 PATH_SESSION_GRAPHS = "/home/mcfrank/brain/data/node_editor_subgraphs"
@@ -35,6 +36,7 @@ class Link(BaseModel):
 
 
 class Node(BaseModel):
+    type: str = "node"
     id: str
     name: str
     timestamp: int
@@ -82,6 +84,16 @@ def get_embeddings():
     return temp_embeddings
 
 
+class EmbeddingVector(List[float]):
+    pass
+
+
+def embed(text: str) -> List[float]:
+    request = requests.post(EMBED_URL, json={"text": text})
+    if request.status_code == 200:
+        return request.json()
+
+
 nodes = get_nodes()
 embeddings = get_embeddings()
 print(len(nodes))
@@ -101,11 +113,16 @@ def get_random() -> Node:
     return r_node
 
 
-class SimilarNodesRequest(BaseModel):
-    node_id: str
+class SimilarNodesRequest(Node):
+    pass
 
 
 def get_node_embedding(node_id: str):
+    node_ids = [embedding.node_id for embedding in embeddings]
+
+    if node_id not in node_ids:
+        return None
+
     for embedding in embeddings:
         if embedding.node_id == node_id:
             return embedding.embedding
@@ -113,9 +130,9 @@ def get_node_embedding(node_id: str):
 
 @app.post("/nodes/similar")
 def get_similar(similar_nodes_request: SimilarNodesRequest) -> List[Node]:
-    base_node_id = similar_nodes_request.node_id
+    base_node_id = similar_nodes_request.id
 
-    node_embedding = get_node_embedding(base_node_id)
+    node_embedding = embed(similar_nodes_request.text)
 
     node_id_similarity_map = {}
     for embedding_obj in embeddings:
@@ -124,16 +141,17 @@ def get_similar(similar_nodes_request: SimilarNodesRequest) -> List[Node]:
         temp_id = embedding_obj.node_id
         embedding_vector = embedding_obj.embedding
         temp_embedding = np.array(embedding_vector)
-        similarity = np.dot(temp_embedding, node_embedding) / \
-            (np.linalg.norm(node_embedding) * np.linalg.norm(temp_embedding))
+        similarity = (
+            np.dot(temp_embedding, node_embedding)
+        ) / (
+            np.linalg.norm(node_embedding) * np.linalg.norm(temp_embedding)
+        )
         node_id_similarity_map[temp_id] = similarity
 
     # Sort by similarity score and select top N
     zipped_map = list(node_id_similarity_map.items())
     zipped_map.sort(key=lambda x: x[1], reverse=True)
     top_similar_nodes = zipped_map[:8]
-
-    print(top_similar_nodes)
 
     samples = random.sample(top_similar_nodes, 2)
 

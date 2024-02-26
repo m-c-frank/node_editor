@@ -1,27 +1,47 @@
-document.addEventListener("DOMContentLoaded", async () => {
-    const response = await fetch('/nodes/random');
-    const node = await response.json();
-    console.log(node);
-    const similarRequest = {
-        node_id: node.id,
-    };
-    console.log(similarRequest);
-    // get similar by posting the node to /nodes/similar
-    const similarNodes = await fetch('/nodes/similar', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(similarRequest),
+document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById('seedSubmit').addEventListener('click', async () => {
+        const seed = document.getElementById('seedInput').value;
+
+        const similarRequest = {
+            "id": generateUUID(),
+            "name": String(Date.now()),
+            "timestamp": String(Date.now()),
+            "origin": "manual node editor",
+            "text": seed,
+            "type": "node"
+        };
+
+        try {
+            const response = await fetch('/nodes/similar', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(similarRequest),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch similar nodes.');
+            }
+
+            const similarNodesJson = await response.json();
+            console.log(similarNodesJson);
+
+            if (similarNodesJson && similarNodesJson.length >  0) {
+                const nodeDiv = displayNode(similarNodesJson[0]);
+                document.getElementById('nodeContainer').appendChild(nodeDiv);
+                const similar1div = displayNode(similarNodesJson[1]);
+                document.getElementById('similarContainer1').appendChild(similar1div);
+                const similar2div = displayNode(similarNodesJson[2]);
+                document.getElementById('similarContainer2').appendChild(similar2div);
+            } else {
+                alert('No similar nodes found.');
+            }
+        } catch (error) {
+            console.error('Error fetching similar nodes:', error);
+            alert('Failed to fetch similar nodes.');
+        }
     });
-    const similarNodesJson = await similarNodes.json();
-    console.log(similarNodesJson);
-    const nodeDiv = displayNode(node);
-    document.getElementById('nodeContainer').appendChild(nodeDiv);
-    const similar1div = displayNode(similarNodesJson[0]);
-    document.getElementById('similarContainer1').appendChild(similar1div);
-    const similar2div = displayNode(similarNodesJson[1]);
-    document.getElementById('similarContainer2').appendChild(similar2div);
 });
 
 
@@ -66,7 +86,6 @@ function displayNode(node) {
     new_origin_span.textContent = 'New origin: ';
     text_span.textContent = 'Text: ';
 
-    // id must be read only
     id.disabled = true;
     origin.disabled = true;
     timestamp.disabled = true;
@@ -84,7 +103,6 @@ function displayNode(node) {
     div.appendChild(text_span);
     div.appendChild(text);
 
-    // add a button to submit the new node
     setupNodeSubmission(div);
 
     return div
@@ -134,10 +152,8 @@ function setupNodeSubmission(nodeViewerDiv) {
         });
 
         if (response.ok) {
-            //reload the site
             location.reload();
         } else {
-            // Handle errors or unsuccessful submission
             alert('Failed to submit annotation.');
         }
     };
