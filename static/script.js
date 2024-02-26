@@ -1,9 +1,4 @@
 document.addEventListener("DOMContentLoaded", () => {
-    function seedSubmitCallback() {
-        document.getElementById('seedSubmit').addEventListener('click', async () => {
-        });
-    }
-
     const similarRequest = {
         "id": generateUUID(),
         "name": "similarity_seed_" + String(Date.now()),
@@ -137,6 +132,9 @@ function setupNodeSubmission(nodeViewerDiv, mode) {
             }
         }
         else if (mode == "search"){
+            document.getElementById('nodeContainer').innerHTML = '';
+            const newNodeDiv = displayNode(main_node);
+            document.getElementById('nodeContainer').appendChild(newNodeDiv);
             try {
                 const response = await fetch('/nodes/similar', {
                     method: 'POST',
@@ -153,10 +151,12 @@ function setupNodeSubmission(nodeViewerDiv, mode) {
                 const similarNodesJson = await response.json();
 
                 if (similarNodesJson && similarNodesJson.length > 0) {
+                    document.getElementById('similarContainer1').innerHTML = '';
                     const similar1div = displayNode(similarNodesJson[0]);
                     document.getElementById('similarContainer1').appendChild(similar1div);
                     setupNodeSubmission(similar1div, "search");
 
+                    document.getElementById('similarContainer2').innerHTML = '';
                     const similar2div = displayNode(similarNodesJson[1]);
                     document.getElementById('similarContainer2').appendChild(similar2div);
                     setupNodeSubmission(similar2div, "search");
