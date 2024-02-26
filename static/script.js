@@ -1,47 +1,21 @@
 document.addEventListener("DOMContentLoaded", () => {
-    document.getElementById('seedSubmit').addEventListener('click', async () => {
-        const seed = document.getElementById('seedInput').value;
+    function seedSubmitCallback() {
+        document.getElementById('seedSubmit').addEventListener('click', async () => {
+        });
+    }
 
-        const similarRequest = {
-            "id": generateUUID(),
-            "name": String(Date.now()),
-            "timestamp": String(Date.now()),
-            "origin": "manual node editor",
-            "text": seed,
-            "type": "node"
-        };
+    const similarRequest = {
+        "id": generateUUID(),
+        "name": "similarity_seed_" + String(Date.now()),
+        "timestamp": String(Date.now()),
+        "origin": "node_editor:seeding/static/",
+        "text": "",
+        "type": "node"
+    };
 
-        try {
-            const response = await fetch('/nodes/similar', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(similarRequest),
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to fetch similar nodes.');
-            }
-
-            const similarNodesJson = await response.json();
-            console.log(similarNodesJson);
-
-            if (similarNodesJson && similarNodesJson.length >  0) {
-                const nodeDiv = displayNode(similarNodesJson[0]);
-                document.getElementById('nodeContainer').appendChild(nodeDiv);
-                const similar1div = displayNode(similarNodesJson[1]);
-                document.getElementById('similarContainer1').appendChild(similar1div);
-                const similar2div = displayNode(similarNodesJson[2]);
-                document.getElementById('similarContainer2').appendChild(similar2div);
-            } else {
-                alert('No similar nodes found.');
-            }
-        } catch (error) {
-            console.error('Error fetching similar nodes:', error);
-            alert('Failed to fetch similar nodes.');
-        }
-    });
+    const nodeDiv = displayNode(similarRequest);
+    document.getElementById('nodeContainer').appendChild(nodeDiv);
+    setupNodeSubmission(nodeDiv, "search");
 });
 
 
@@ -103,58 +77,95 @@ function displayNode(node) {
     div.appendChild(text_span);
     div.appendChild(text);
 
-    setupNodeSubmission(div);
-
     return div
 }
 
 
-function setupNodeSubmission(nodeViewerDiv) {
+function newNode(nodeViewerDiv) {
+    const new_id = generateUUID();
+    const new_name = nodeViewerDiv.querySelector('#nodeName').value;
+    const new_timestamp = nodeViewerDiv.querySelector('#nodeTimestamp').value;
+    const new_origin = nodeViewerDiv.querySelector('#nodeOrigin').value;
+    const new_text = nodeViewerDiv.querySelector("#nodeText").value;
+
+    const new_node = {
+        id: new_id,
+        name: new_name,
+        timestamp: new_timestamp,
+        origin: new_origin,
+        text: new_text,
+    };
+
+    return new_node;
+}
+
+
+function setupNodeSubmission(nodeViewerDiv, mode) {
     const submitButton = document.createElement('button');
+
+    const original_id = nodeViewerDiv.querySelector('#nodeID').value;
+
     submitButton.id = 'submitNode';
     submitButton.textContent = 'Submit';
+
     nodeViewerDiv.appendChild(submitButton);
+
     submitButton.onclick = async () => {
-        const new_id = generateUUID();
-        const new_name = nodeViewerDiv.querySelector('#nodeName').value;
-        console.log(new_name);
-        const new_timestamp = nodeViewerDiv.querySelector('#nodeTimestamp').value;
-        const new_origin = nodeViewerDiv.querySelector('#nodeOrigin').value;
-        const new_text = nodeViewerDiv.querySelector("#nodeText").value;
+        const main_node = newNode(nodeViewerDiv);
+        if (mode == "insert") {
 
-        const original_id = nodeViewerDiv.querySelector('#nodeID').value;
+            const link = {
+                source: original_id,
+                target: new_id,
+            };
 
-        const new_node = {
-            id: new_id,
-            name: new_name,
-            timestamp: new_timestamp,
-            origin: new_origin,
-            text: new_text,
-        };
+            const response = await fetch('/graph/insert', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    nodes: [main_node],
+                    links: [link],
+                }),
+            });
 
-        const link = {
-            source: original_id,
-            target: new_id,
-        };
+            if (response.ok) {
+                location.reload();
+            } else {
+                console.error('Failed to submit new node:', response);
+            }
+        }
+        else if (mode == "search"){
+            try {
+                const response = await fetch('/nodes/similar', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(main_node),
+                });
 
-        console.log(new_node);
-        console.log(link);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch similar nodes.');
+                }
 
-        const response = await fetch('/graph/insert', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                nodes: [new_node],
-                links: [link],
-            }),
-        });
+                const similarNodesJson = await response.json();
 
-        if (response.ok) {
-            location.reload();
-        } else {
-            alert('Failed to submit annotation.');
+                if (similarNodesJson && similarNodesJson.length > 0) {
+                    const similar1div = displayNode(similarNodesJson[0]);
+                    document.getElementById('similarContainer1').appendChild(similar1div);
+                    setupNodeSubmission(similar1div, "search");
+
+                    const similar2div = displayNode(similarNodesJson[1]);
+                    document.getElementById('similarContainer2').appendChild(similar2div);
+                    setupNodeSubmission(similar2div, "search");
+                } else {
+                    alert('No similar nodes found.');
+                }
+            } catch (error) {
+                alert('Failed to fetch similar nodes.');
+            }
         }
     };
 }
